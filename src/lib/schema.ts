@@ -21,5 +21,13 @@ export const MessageSchema = z.array(
   }),
 );
 
+export const TaskSchema = z.object({
+  id: z.string().describe("任务唯一标识符，如 'researcher', 'writer' 等"),
+  role: z.string().describe("Agent 的角色设定，例如 '资深程序员' 或 '资深文案策划'"),
+  task: z.string().describe("分配给该 Agent 的具体工作内容"),
+  dependencies: z.array(z.string()).describe("依赖的任务 ID 列表"),
+});
+
 export type TConfigScheme = z.infer<typeof ConfigScheme>;
 export type TTypeScheme = z.infer<typeof TypeScheme>;
+export type TTask = z.infer<typeof TaskSchema>;

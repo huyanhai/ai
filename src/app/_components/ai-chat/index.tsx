@@ -39,17 +39,30 @@ const AiChat = () => {
     scrollToBottom();
   }, [messages]);
 
+  // 处理流式数据
   const processStream = async (aiMsgId: string, response: any) => {
     for await (const chunk of response) {
       const event = chunk as INode;
-
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id !== aiMsgId) return msg;
 
           const currentSteps = msg.steps ? [...msg.steps] : [];
 
-          if (event.type === "step_start" || event.type === "tool_start") {
+          if (event.type === "token") {
+            const lastStepIndex = currentSteps.length - 1;
+            if (lastStepIndex >= 0) {
+              const lastStep = { ...currentSteps[lastStepIndex]! };
+              if (lastStep.status === "running") {
+                lastStep.content += event.content ?? "";
+                currentSteps[lastStepIndex] = lastStep;
+                return { ...msg, steps: currentSteps };
+              }
+            }
+          } else if (
+            event.type === "step_start" ||
+            event.type === "tool_start"
+          ) {
             return {
               ...msg,
               steps: [
@@ -62,16 +75,6 @@ const AiChat = () => {
                 },
               ],
             };
-          } else if (event.type === "token") {
-            const lastStepIndex = currentSteps.length - 1;
-            if (lastStepIndex >= 0) {
-              const lastStep = { ...currentSteps[lastStepIndex]! };
-              if (lastStep.status === "running") {
-                lastStep.content += event.content ?? "";
-                currentSteps[lastStepIndex] = lastStep;
-                return { ...msg, steps: currentSteps };
-              }
-            }
           } else if (event.type === "step_end" || event.type === "tool_end") {
             for (let i = currentSteps.length - 1; i >= 0; i--) {
               if (
@@ -129,25 +132,15 @@ const AiChat = () => {
       const message = await Promise.all(
         content
           .filter((item) => {
-            if (item.type !== "attachment" && !item.text?.trim()) {
-              return false;
-            }
-            return true;
+            return !(item.type !== "attachment" && !item.text?.trim());
           })
           .map(async (item) => {
             const ext = getFileExtension(item.fileName ?? "");
             if (item.type === "attachment" && ext) {
-              if (ImageExts.includes(ext)) {
-                return {
-                  hash: item.hash,
-                  type: "image",
-                  url: item.url,
-                  source_type: "url",
-                };
-              }
+              const type = ImageExts.includes(ext) ? "image" : "file";
               return {
                 hash: item.hash,
-                type: "file",
+                type,
                 url: item.url,
                 source_type: "url",
               };
@@ -171,6 +164,19 @@ const AiChat = () => {
     }
   };
 
+  const handleResume = async (aiMsgId: string, val: string) => {
+    try {
+      const response = await mutateAsync({
+        resumeValue: val,
+        threadId,
+      });
+
+      await processStream(aiMsgId, response);
+    } catch (error) {
+      console.error("Error resuming:", error);
+    }
+  };
+
   return (
     <div className="mx-auto flex h-full w-full flex-col">
       <div className="m-2 flex items-center justify-between gap-6">
@@ -186,7 +192,11 @@ const AiChat = () => {
       </div>
       <div className="no-scrollbar mb-4 flex-1 space-y-6 overflow-y-auto px-2">
         {messages.map((msg) => (
-          <Bubble key={msg.id} msg={msg} />
+          <Bubble
+            key={msg.id}
+            msg={msg}
+            onResume={(val) => handleResume(msg.id, val)}
+          />
         ))}
         <div ref={messagesEndRef} />
       </div>

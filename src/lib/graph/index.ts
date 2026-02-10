@@ -1,11 +1,19 @@
-import { Annotation, START, StateGraph, END, MemorySaver } from "@langchain/langgraph";
+import {
+  Annotation,
+  START,
+  StateGraph,
+  END,
+  MemorySaver,
+} from "@langchain/langgraph";
 import * as z from "zod";
-import { ConfigScheme, MessageSchema, TypeScheme } from "../schema";
+import { ConfigScheme, MessageSchema, TypeScheme, type TTask } from "../schema";
 
 import { textNode } from "./node/textNode";
-import { imageNode } from "./node/imageNode";
-import { fileNode } from "./node/fileNode";
-import { classifierNode } from "./node/classifierNode";
+import { supervisorNode } from "./node/supervisorNode";
+import { workerNode } from "./node/workerNode";
+import { synthesizerNode } from "./node/synthesizerNode";
+import { toolNode } from "./node/toolsNode";
+import { distributeTasksNode } from "./node/distributeTasksNode";
 
 export const State = Annotation.Root({
   message: Annotation<z.infer<typeof MessageSchema>>({
@@ -25,6 +33,15 @@ export const State = Annotation.Root({
   }),
   name: Annotation<string | undefined>(),
   threadId: Annotation<string | undefined>(),
+  tasks: Annotation<TTask[]>({
+    reducer: (x, y) => y ?? x,
+    default: () => [],
+  }),
+  // 存储每个workerNode的输出
+  agent_outputs: Annotation<Record<string, string>>({
+    reducer: (x, y) => ({ ...x, ...y }),
+    default: () => ({}),
+  }),
 });
 
 export type TState = typeof State.State;
@@ -36,36 +53,25 @@ export const InputState = z.object({
   threadId: z.string().optional(),
 });
 
-const route = async (state: TState) => {
-  if (state.shouldGenerate === "file") {
-    return "fileNode";
-  } else {
-    return "textNode";
-  }
-};
-
-// readNode 的后续路由：如果是生图任务，继续前往 imageNode
-const readRoute = (state: TState) => {
-  if (state.shouldGenerate === "image" && state.result) {
-    return "imageNode";
-  }
-  return END;
-};
-
-const builder = new StateGraph(State);
+const builder = new StateGraph(State)
+  .addNode("supervisorNode", supervisorNode)
+  .addNode("workerNode", workerNode)
+  .addNode("synthesizerNode", synthesizerNode)
+  // 虽然暂时不用，但保留节点定义以便后续扩展
+  .addNode("textNode", textNode)
+  .addNode("toolNode", toolNode)
+  // .addNode("imageNode", imageNode)
+  // .addNode("fileNode", fileNode)
+  // .addNode("approvalNode", approvalNode, {
+  //   ends: ["textNode", "toolNode", END],
+  // })
+  .addEdge(START, "supervisorNode")
+  .addConditionalEdges("supervisorNode", distributeTasksNode)
+  .addEdge("workerNode", "synthesizerNode")
+  .addEdge("synthesizerNode", END);
 
 const checkpointer = new MemorySaver();
 
-export const graph = builder
-  .addNode("classifierNode", classifierNode)
-  .addNode("textNode", textNode)
-  .addNode("imageNode", imageNode)
-  .addNode("fileNode", fileNode)
-  .addEdge(START, "classifierNode")
-  .addConditionalEdges("classifierNode", route)
-  .addConditionalEdges("textNode", readRoute)
-  .addEdge("imageNode", END)
-  .addEdge("fileNode", END)
-  .compile({
-    checkpointer,
-  });
+export const graph = builder.compile({
+  checkpointer,
+});

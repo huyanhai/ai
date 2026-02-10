@@ -1,32 +1,9 @@
 import { createAgent } from "langchain";
 import { MemorySaver } from "@langchain/langgraph";
-
 import { googleImageModel, googleModel, qianWenModel } from "./llm";
-
-import { MultiServerMCPClient } from "@langchain/mcp-adapters";
-import { ZHIPU_API_KEY } from "@/constants/env";
+import { getTools } from "./mcp";
 
 export const checkpointer = new MemorySaver();
-
-let tools: Awaited<ReturnType<MultiServerMCPClient["getTools"]>> | null = null;
-
-const mcpClient = new MultiServerMCPClient({
-  // "bing-search": {
-  //   command: "npx",
-  //   args: ["bing-cn-mcp"],
-  // },
-  "zhipu-web-search-sse": {
-    transport: "http",
-    url: `https://open.bigmodel.cn/api/mcp/web_search/sse?Authorization=${ZHIPU_API_KEY}`,
-  },
-});
-
-const getTools = async () => {
-  if (!tools) {
-    tools = await mcpClient.getTools();
-  }
-  return tools;
-};
 
 // --- 普通对话 Agent (No Tools) ---
 export const chatAgent = async () => {
@@ -50,5 +27,3 @@ export const imageAgent = createAgent({
   tools: [],
   checkpointer,
 });
-
-getTools();
