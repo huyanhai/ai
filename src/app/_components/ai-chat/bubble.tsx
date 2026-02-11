@@ -1,7 +1,7 @@
 import React from "react";
 import Image from "next/image";
 import { Avatar, Timeline, Typography, Collapse } from "antd";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { motion } from "motion/react";
 
 import { type IChatContent } from "./sender/msg-input";
@@ -32,7 +32,6 @@ const Bubble = ({
   msg: IMessage;
   onResume?: (val: string) => void;
 }) => {
-  console.log("msg", msg);
   const toolSteps = React.useMemo(() => {
     return (
       msg.steps?.filter((step) => {
@@ -44,6 +43,7 @@ const Bubble = ({
           "supervisorNode",
           "synthesizerNode",
         ];
+        // 排除结构化节点和 Worker 节点，剩下的通常是具体的工具调用
         return (
           !structuralNodes.includes(step.name) &&
           !step.name.startsWith("Worker:")
@@ -66,6 +66,8 @@ const Bubble = ({
         (step) =>
           !toolSteps.includes(step) &&
           !step.name.startsWith("Worker:") &&
+          // 确保不显示 classifierNode
+          step.name !== "classifierNode" &&
           [
             "supervisorNode",
             "synthesizerNode",
@@ -113,16 +115,6 @@ const Bubble = ({
           )}
           <Timeline
             items={[
-              ...(toolSteps.length > 0
-                ? [
-                    {
-                      color: toolSteps.every((s) => s.status === "completed")
-                        ? "#191E26"
-                        : "gray",
-                      content: <ToolStatus steps={toolSteps} />,
-                    },
-                  ]
-                : []),
               ...normalSteps
                 .map((step) => {
                   const timelineItem = {
@@ -184,61 +176,25 @@ const Bubble = ({
                           : "gray",
                         content: (
                           <Collapse
-                            ghost
-                            size="small"
-                            className="subtask-collapse"
-                            expandIcon={({ isActive }) => (
-                              <ChevronDown
-                                size={14}
-                                className={`transition-transform ${isActive ? "rotate-180" : ""}`}
+                            classNames={{
+                              header: "!p-2",
+                            }}
+                            accordion={true}
+                            expandIcon={(panelProps) => (
+                              <ChevronRight
+                                size={16}
+                                className={
+                                  panelProps.isActive ? "rotate-90" : "rotate-0"
+                                }
                               />
                             )}
-                            items={[
-                              {
-                                key: "workers",
-                                label: (
-                                  <span className="text-xs font-medium text-gray-500">
-                                    查看子任务执行细节 (
-                                    {
-                                      workerSteps.filter(
-                                        (s) => s.status === "completed",
-                                      ).length
-                                    }
-                                    /{workerSteps.length})
-                                  </span>
-                                ),
-                                children: (
-                                  <div className="space-y-4 pt-2">
-                                    {workerSteps.map((ws) => (
-                                      <div
-                                        key={ws.id}
-                                        className="border-l-2 border-gray-100 pl-4"
-                                      >
-                                        <div className="mb-1 flex items-center gap-2">
-                                          <span className="text-xs font-bold text-[#191E26]">
-                                            {ws.name.replace("Worker:", "")}
-                                          </span>
-                                          {ws.status === "running" && (
-                                            <span className="animate-pulse text-[10px] text-gray-400">
-                                              运行中...
-                                            </span>
-                                          )}
-                                        </div>
-                                        <Markdown
-                                          content={
-                                            ws.content ||
-                                            (ws.status === "running"
-                                              ? "正在处理..."
-                                              : "")
-                                          }
-                                          className="text-xs text-gray-600"
-                                        />
-                                      </div>
-                                    ))}
-                                  </div>
-                                ),
-                              },
-                            ]}
+                            items={workerSteps.map((item, index) => {
+                              return {
+                                key: item.id,
+                                label: `${item.name.replace("Worker:", "")} (${index + 1}/${workerSteps.length})`,
+                                children: <Markdown content={item.content} />,
+                              };
+                            })}
                           />
                         ),
                       },

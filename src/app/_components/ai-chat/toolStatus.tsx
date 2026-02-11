@@ -5,167 +5,79 @@ import { Avatar, Popover, Typography } from "antd";
 import type { IStep } from "./bubble";
 
 const { Link } = Typography;
-interface ISource {
-  title: string;
-  url: string;
-  snippet: string;
-  domain: string;
-}
 
-const ToolStatus = ({ steps }: { steps: IStep[] }) => {
-  const info = useMemo(() => {
-    const sources: ISource[] = [];
-    const details: string[] = [];
+const TaskItem = ({ step }: { step: IStep }) => {
+  const content = useMemo(() => {
+    const rawContent = step?.content || "";
+    // 正则匹配最外层的方括号内容，通常这是工具返回的 JSON 数组（如搜索结果）
+    const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
 
-    steps.forEach((s) => {
-      if (
-        s.status === "running" &&
-        s.content &&
-        !s.content.includes("调用工具")
-      ) {
-        details.push(s.content);
+    let text = rawContent;
+    let json: any[] = [];
+
+    if (jsonMatch) {
+      const jsonStr = jsonMatch[0];
+      // 提取非 JSON 部分作为纯文本描述
+      text = rawContent.replace(jsonStr, "").trim();
+      try {
+        const parsed = JSON.parse(jsonStr);
+        json = Array.isArray(parsed) ? parsed : [parsed];
+      } catch (e) {
+        console.log("[TaskItem] JSON parse error, treating as plain text");
       }
-
-      if (s.status === "completed" && s.content) {
-        try {
-          const data = JSON.parse(s.content);
-          const items = Array.isArray(data) ? data : data.results || [];
-          if (Array.isArray(items)) {
-            items.forEach((item: any) => {
-              if (item.url && item.title) {
-                try {
-                  const domain = new URL(item.url).hostname;
-                  sources.push({
-                    title: item.title,
-                    url: item.url,
-                    snippet: item.snippet || "",
-                    domain,
-                  });
-                } catch {}
-              }
-            });
-          }
-        } catch (e) {
-          // Regex fallback if needed (only for basic link detection)
-          const urlRegex = /(https?:\/\/[^\s"']+)/g;
-          const matches = s.content.match(urlRegex);
-          if (matches) {
-            matches.forEach((url) => {
-              try {
-                sources.push({
-                  title: new URL(url).hostname,
-                  url,
-                  snippet: "",
-                  domain: new URL(url).hostname,
-                });
-              } catch {}
-            });
-          }
-        }
-      }
-    });
-
-    // Deduplicate by URL
-    const uniqueSources = Array.from(
-      new Map(sources.map((s) => [s.url, s])).values(),
-    );
-
-    return {
-      sources: uniqueSources,
-      details: Array.from(new Set(details)),
-    };
-  }, [steps]);
-
-  const allCompleted = steps.every((s) => s.status === "completed");
-
-  const renderTooltip = (source: ISource, index: number) => (
-    <div className="flex max-w-72 flex-col gap-2">
-      <div className="flex items-center justify-between gap-2 border-b border-white/10 p-2">
-        <div className="flex items-center gap-1.5 overflow-hidden">
-          <img
-            src={`https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${source.url}&size=32`}
-            alt={source.domain}
-            className="h-4 w-4 shrink-0 rounded-sm"
-          />
-          <span className="truncate text-[10px] font-medium text-black/60">
-            {source.domain}
-          </span>
-        </div>
-        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-gray-200 text-[10px] text-black/80">
-          {index + 1}
-        </span>
-      </div>
-      <div className="flex flex-col gap-1 px-2 pb-2">
-        <h4 className="line-clamp-2 text-xs leading-relaxed font-bold text-[#191E26]">
-          {source.title}
-        </h4>
-        {source.snippet && (
-          <p className="line-clamp-3 text-[11px] leading-relaxed text-[#86909C]">
-            {source.snippet}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-
-  const content = (
-    <div className="flex items-center gap-1">
-      <div className="flex items-center gap-1">
-        <span className="text-sm text-[#86909C]">
-          {allCompleted
-            ? info.sources.length > 0
-              ? `已阅读 ${info.sources.length} 个来源`
-              : "已完成搜索"
-            : info.details[info.details.length - 1] || "正在联网搜索..."}
-        </span>
-        <Avatar.Group size={18}>
-          {info.sources.slice(0, 3).map((source, i) => (
-            <Avatar
-              key={i}
-              src={`https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${source.url}&size=16`}
-              alt={source.domain}
-            />
-          ))}
-        </Avatar.Group>
-      </div>
-    </div>
-  );
-
-  const popperContent = useMemo(() => {
-    if (allCompleted && info.sources.length > 0) {
-      return (
-        <Popover
-          align={{
-            offset: [-10, -5],
-          }}
-          classNames={{
-            container: "!px-0 !py-3",
-          }}
-          placement="leftTop"
-          content={
-            <div className="flex max-h-96 flex-col gap-3 overflow-y-auto px-3">
-              {info.sources.map((source, i) => (
-                <div
-                  className="block flex-none overflow-hidden rounded-sm bg-gray-50"
-                  key={i}
-                >
-                  <a href={source.url} target="_blank">
-                    {renderTooltip(source, i)}
-                  </a>
-                </div>
-              ))}
-            </div>
-          }
-          trigger="hover"
-        >
-          {content}
-        </Popover>
-      );
     }
-    return content;
-  }, [allCompleted]);
 
-  return popperContent;
+    return { text, json };
+  }, [step?.content]);
+  return (
+    <div className="flex max-w-72 flex-col gap-2">
+      {content.text && (
+        <div className="mb-2 text-sm text-gray-600">{content.text}</div>
+      )}
+      {content.json?.map((item: any, index: number) => {
+        const url = item.link || item.url;
+        return (
+          <div
+            key={index}
+            className="mb-2 overflow-hidden rounded-md border border-gray-100 bg-gray-50/50"
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-black/5 bg-gray-100/30 p-2">
+              <div className="flex items-center gap-1.5 overflow-hidden">
+                {url && (
+                  <img
+                    src={`https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${url}&size=32`}
+                    alt={item.title}
+                    className="h-3.5 w-3.5 shrink-0 rounded-sm"
+                  />
+                )}
+                <span className="truncate text-[10px] font-medium text-black/40">
+                  {url ? new URL(url).hostname : "来源"}
+                </span>
+              </div>
+              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-[9px] text-black/60">
+                {index + 1}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1 p-2">
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="line-clamp-2 text-xs font-semibold text-[#191E26] transition-colors hover:text-blue-600"
+              >
+                {item.title}
+              </a>
+              {(item.content || item.snippet) && (
+                <p className="line-clamp-3 text-[11px] leading-relaxed text-[#86909C]">
+                  {item.content || item.snippet}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 };
 
-export default ToolStatus;
+export default TaskItem;

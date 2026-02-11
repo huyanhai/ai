@@ -90,13 +90,7 @@ export const aiRouter = createTRPCRouter({
           };
         } else if (chunk.event === "on_tool_start") {
           let description = "";
-          const toolInput = chunk.data.input as Record<string, any>;
-          if (name === "bing-search" && toolInput.query) {
-            description = `正在搜索: ${toolInput.query}`;
-          } else {
-            description = `正在调用工具: ${name}`;
-          }
-
+          // 移除正在搜索和正在调用工具的文字提示
           yield {
             type: "tool_start",
             name: chunk.name,
@@ -121,6 +115,14 @@ export const aiRouter = createTRPCRouter({
             content,
           };
         } else if (chunk.event === "on_chat_model_stream") {
+          const currentNode = chunk.metadata?.langgraph_node;
+          // 只有 textNode 和 workerNode 允许流式输出 tokens
+          // 其他节点（如 classifierNode, supervisorNode）因为是结构化输出，流出的 token 是 JSON 字符串，不建议展示
+          const allowedTokenNodes = ["textNode", "workerNode"];
+          if (currentNode && !allowedTokenNodes.includes(currentNode)) {
+            continue;
+          }
+
           const data = chunk.data as {
             chunk?: { content?: string };
             content?: string;
@@ -129,7 +131,7 @@ export const aiRouter = createTRPCRouter({
           if (typeof content === "string" && content) {
             yield {
               type: "token",
-              name,
+              name: currentNode || name,
               content,
             };
           }

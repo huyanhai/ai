@@ -33,13 +33,16 @@ export const supervisorNode = async (state: TState) => {
 1. 分析用户的需求。
 2. **判断复杂性**：
    - 如果用户的问题简单（如：你好、1+1等于几、你是谁、简单的闲聊、或者一个非常简单的问题），**请不要拆解子任务**。此时，请将 \`tasks\` 数组保持为空 \`[]\`，并在 \`plan_description\` 中直接给出你的完整回答。
-   - 如果用户的问题复杂（如：多步骤分析、需要联网搜索、图文创作、文件深度分析），请将其拆解为多个子任务并指派专家。
-3. 为每个子任务指派对应的专家智能体 (Expert Agent)。
+   - 如果用户的问题复杂（如：多步骤分析、需要联网搜索、文件深度分析），请将其拆解为多个子任务并指派专家。
+3. 为每个子任务指派对应的专家智能体 (Expert Agent) 并选择适当的模型 (modelType)。
+
+模型选择指南 (modelType)：
+- qianwen: 默认模型，适用于大多数文本处理、逻辑分析任务。
+- google: 适用于需要更强推理能力、长上下文处理或文件深度分析任务。
 
 配置建议：
-- WebResearcher: 联网搜索任务。
-- ImageDesigner: 提示词生成与绘画。
-- DataAnalyzer: 文件深度分析。
+- WebResearcher: 联网搜索任务，建议 modelType: qianwen。
+- DataAnalyzer: 文件深度分析或向量数据库查询，建议 modelType: google。
 - GeneralAssistant: 复杂逻辑处理。
 
 请优先判断是否可以直接回答。`),

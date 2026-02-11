@@ -1,8 +1,11 @@
 import { qianWenModel } from "@/lib/llm";
 import type { TState } from "..";
-import { Command, END, interrupt } from "@langchain/langgraph";
+import { Command, interrupt } from "@langchain/langgraph";
 import { getTools } from "@/lib/mcp";
 
+/**
+ * 审批节点
+ */
 export const approvalNode = async (state: TState) => {
   console.log("state", state);
   // userInput获取用户的输入

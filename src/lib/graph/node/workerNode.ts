@@ -1,7 +1,7 @@
 import { HumanMessage, SystemMessage } from "langchain";
-import { qianWenModel } from "../../llm";
+import { qianWenModel, googleModel, googleImageModel } from "../../llm";
 import type { TTask } from "../../schema";
-import { getToolByName, getTools, mcpTools } from "@/lib/mcp";
+import { getToolByName, getTools } from "@/lib/mcp";
 
 /**
  * Worker 智能体
@@ -9,12 +9,26 @@ import { getToolByName, getTools, mcpTools } from "@/lib/mcp";
  */
 export const workerNode = async (state: { task: TTask; threadId?: string }) => {
   const { task } = state;
+  console.log(`[Worker:${task.id}] Using model: ${task.modelType}`);
+  
   try {
     const prompt = `你是一位优秀的 ${task.role}。
 你的当前任务是：${task.task}
 如果你发现任务无法完成，请说明理由。`;
 
-    const response = await qianWenModel
+    // 根据 modelType 选择对应的模型
+    let model;
+    switch (task.modelType) {
+      case "google":
+        model = googleModel;
+        break;
+      case "qianwen":
+      default:
+        model = qianWenModel;
+        break;
+    }
+
+    const response = await model
       .bindTools(await getTools())
       .invoke(
         [new SystemMessage(prompt), new HumanMessage("请开始你的工作。")],

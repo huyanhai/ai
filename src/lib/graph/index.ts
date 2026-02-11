@@ -14,6 +14,8 @@ import { workerNode } from "./node/workerNode";
 import { synthesizerNode } from "./node/synthesizerNode";
 import { toolNode } from "./node/toolsNode";
 import { distributeTasksNode } from "./node/distributeTasksNode";
+import { classifierNode } from "./node/classifierNode";
+import { imageNode } from "./node/imageNode";
 
 export const State = Annotation.Root({
   message: Annotation<z.infer<typeof MessageSchema>>({
@@ -54,21 +56,45 @@ export const InputState = z.object({
 });
 
 const builder = new StateGraph(State)
+  .addNode("classifierNode", classifierNode)
   .addNode("supervisorNode", supervisorNode)
   .addNode("workerNode", workerNode)
   .addNode("synthesizerNode", synthesizerNode)
-  // 虽然暂时不用，但保留节点定义以便后续扩展
   .addNode("textNode", textNode)
+  .addNode("imageNode", imageNode)
   .addNode("toolNode", toolNode)
-  // .addNode("imageNode", imageNode)
-  // .addNode("fileNode", fileNode)
-  // .addNode("approvalNode", approvalNode, {
-  //   ends: ["textNode", "toolNode", END],
-  // })
-  .addEdge(START, "supervisorNode")
+  .addEdge(START, "classifierNode")
+  .addConditionalEdges("classifierNode", (state) => {
+    switch (state.shouldGenerate) {
+      case "text":
+        return "textNode";
+      case "image_simple":
+        return "textNode"; // 先去 textNode 优化提示词
+      case "decompose":
+      case "image_complex":
+        return "supervisorNode";
+      default:
+        return "textNode";
+    }
+  })
   .addConditionalEdges("supervisorNode", distributeTasksNode)
   .addEdge("workerNode", "synthesizerNode")
-  .addEdge("synthesizerNode", END);
+  .addConditionalEdges("synthesizerNode", (state) => {
+    if (state.shouldGenerate === "image_complex") {
+      return "textNode"; // 复杂生图：拆分执行汇总后，去 textNode 优化提示词
+    }
+    return END;
+  })
+  .addConditionalEdges("textNode", (state) => {
+    if (
+      state.shouldGenerate === "image_simple" ||
+      state.shouldGenerate === "image_complex"
+    ) {
+      return "imageNode"; // 提示词优化完成后，去生图
+    }
+    return END;
+  })
+  .addEdge("imageNode", END);
 
 const checkpointer = new MemorySaver();
 

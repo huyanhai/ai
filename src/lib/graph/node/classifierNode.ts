@@ -6,77 +6,72 @@ import type { TState } from "..";
 import { Command } from "@langchain/langgraph";
 
 const typeMap: Record<TTypeScheme, string> = {
-  image: "[图片]",
-  file: "[文件]",
-  text: "[文本]",
+  text: "[对话]",
+  image: "[图片附件]",
+  file: "[文件附件]",
+  decompose: "[任务拆分]",
+  image_simple: "[简单生图]",
+  image_complex: "[复杂生图]",
 };
 
 /**
  * 意图识别节点
- * 将用户输入分类为：生图 (image)、文件 RAG (file)、普通对话 (text)
+ * 负责将用户输入分发到：基础对话 (text)、复杂拆分 (decompose)、简单生图 (image_simple)、复杂生图 (image_complex)
  */
 export const classifierNode = async (state: TState) => {
-  console.log("[Classifier] state:", state);
+  console.log("[Classifier] Analying user intent...");
   const modelWithOutput = qianWenModel.withStructuredOutput(
     z.object({
       shouldGenerate: TypeScheme,
     }),
   );
 
-  // 格式化消息内容，让模型更清晰地看到用户输入了什么
   const messages = state.message
     .map((m) => {
       if (m.type === "text") return m.text;
-      return typeMap[m.type];
+      return `[${m.type}]`;
     })
     .filter(Boolean)
     .join("\n");
 
-  // 判断会话中是否存在文件
-  const hasFile = state.message.some((m) => m.type === "file");
-
   const res = await modelWithOutput.invoke([
-    new SystemMessage(`你是一个极其专业的意图识别专家。你的任务是分析用户的输入，将其精确分类为以下三类之一：
+    new SystemMessage(`# 意图识别与模型调度专家
 
-1. "image" (生图意图):
-   - 用户明确表达了“想要生成、画、创作、设计、制作”一张新图片的需求。
-   - 关键词：画一个、生成、绘制、设计Logo、创作一张图。
-   - 示例："帮我画一只戴墨镜的猫" -> image
-   - 示例："生成一个赛博朋克风格的背景图" -> image
+你是一个极其专业的 AI 系统调度员。你的任务是分析用户的输入意图，并从以下四个核心执行逻辑中选择最匹配的路径。
 
-2. "file" (文件处理/RAG意图):
-   - 用户要求基于已上传的文件/文档进行总结、分析、提取信息或针对性提问。
-   - **前提条件**：只有在【会话包含文件】为“是”时，才允许归为此类。
-   - 如果用户表达了文件处理意图，但【会话包含文件】为“否”，则必须归为 "text"。
-   - 关键词：根据文件、总结一下、这篇文章说了什么、提取合同细节。
-   - 示例："总结一下我刚才传的文件" (会话包含文件：是) -> file
+## 核心执行路径定义
 
-3. "text" (普通对话/识图/闲聊):
-   - 简单的问候、基础常识（无需实时联网）、代码编写、文学创作、心理咨询。
-   - 示例："你好" -> text
-   - 示例："帮我写一段 Python 代码" -> text
-   - 示例："你觉得人工智能的未来是什么？" -> text
+### 1. text (基础对话模式)
+- **判定标准**：用户进行简单的问候、基础常识问答、闲聊。不需要调用复杂工具或分多个步骤。
+- **示例**：“你好”、“今天天气怎么样”、“帮我写一段 Python 代码”。
 
-优先级规则：
-- 如果用户提到“画”、“生成”，优先归为 "image"。
-- 否则，针对文件操作且有文件，归为 "file"。
-- 其余简单的对话 and 问答一律归为 "text"。`),
+### 2. decompose (多步任务规划模式)
+- **判定标准**：用户需求具有高度复杂性，需要通过多个子任务配合才能完成（如：联网调研、多角度分析、多角色协作），或者涉及深度的文件处理。
+- **示例**：“帮我对比最近三年的新能源汽车行业报告”、“分析我上传的文件”。
+
+### 3. image_simple (视觉创作 - 简单模式)
+- **判定标准**：用户明确表达了绘图需求，且需求描述清晰直观，无需前置调查。
+- **示例**：“画一个戴墨镜的猫”、“生成一张赛博朋克风格的赛车图”。
+
+### 4. image_complex (视觉创作 - 复杂模式)
+- **判定标准**：需要基于特定事实、参考资料或多维度调研后再进行图片创作。
+- **示例**：“根据我刚才上传的方案书，设计一张对应的宣传海报”、“对比分析这两家公司，然后画一张未来趋势图”。
+
+## 判定优先级
+- 涉及绘图意愿，优先归类为 image_simple 或 image_complex。
+- 若逻辑复杂、涉及多步分析或文件理解，归类为 decompose。
+- 其余所有交互归类为 text。`),
     new HumanMessage(
-      `【上下文信息】
-- 会话包含文件：${hasFile ? "是" : "否"}
-
-【用户输入内容】
+      `【用户输入内容】
 ---
 ${messages}
 ---
 
-请直接给出分类结果。`,
+请根据以上定义，直接给出最匹配的分类路径。`,
     ),
   ]);
 
-  console.log(
-    `[Classifier] Intent identified: ${res.shouldGenerate} for input: "${messages.slice(0, 50)}..."`,
-  );
+  console.log(`[Classifier] Intent identified: ${res.shouldGenerate}`);
 
   return { shouldGenerate: res.shouldGenerate };
 };
