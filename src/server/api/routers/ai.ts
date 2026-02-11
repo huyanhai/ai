@@ -30,6 +30,12 @@ export const aiRouter = createTRPCRouter({
     .mutation(async function* ({ input }) {
       const { message, config, threadId, resumeValue } = input;
 
+      // 立即发送一个初始状态，让前端显示“思考中”，改善响应感
+      yield {
+        type: "step_start",
+        name: "AI",
+      };
+
       const inputSignal = resumeValue !== undefined
         ? new Command({ resume: resumeValue }) 
         : { message, config, threadId };
@@ -116,10 +122,11 @@ export const aiRouter = createTRPCRouter({
           };
         } else if (chunk.event === "on_chat_model_stream") {
           const currentNode = chunk.metadata?.langgraph_node;
-          // 只有 textNode 和 workerNode 允许流式输出 tokens
-          // 其他节点（如 classifierNode, supervisorNode）因为是结构化输出，流出的 token 是 JSON 字符串，不建议展示
-          const allowedTokenNodes = ["textNode", "workerNode"];
-          if (currentNode && !allowedTokenNodes.includes(currentNode)) {
+          
+          // 排除掉结构化输出节点的 Token 流（如 classifierNode, supervisorNode）
+          // 这些节点流出的是 JSON 字符串，直接展示会造成界面闪烁代码
+          const blockedNodes = ["classifierNode", "supervisorNode"];
+          if (currentNode && blockedNodes.includes(currentNode)) {
             continue;
           }
 

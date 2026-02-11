@@ -1,13 +1,12 @@
 import React from "react";
 import Image from "next/image";
-import { Avatar, Timeline, Typography, Collapse } from "antd";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { Timeline, Collapse } from "antd";
+import { ChevronRight } from "lucide-react";
 import { motion } from "motion/react";
 
 import { type IChatContent } from "./sender/msg-input";
 import FileRender from "./sender/file-render";
 import Markdown from "./markdown";
-import ToolStatus from "./toolStatus";
 import Approval from "./sender/approval";
 
 export interface IStep {
@@ -32,26 +31,6 @@ const Bubble = ({
   msg: IMessage;
   onResume?: (val: string) => void;
 }) => {
-  const toolSteps = React.useMemo(() => {
-    return (
-      msg.steps?.filter((step) => {
-        const structuralNodes = [
-          "textNode",
-          "imageNode",
-          "fileNode",
-          "classifierNode",
-          "supervisorNode",
-          "synthesizerNode",
-        ];
-        // 排除结构化节点和 Worker 节点，剩下的通常是具体的工具调用
-        return (
-          !structuralNodes.includes(step.name) &&
-          !step.name.startsWith("Worker:")
-        );
-      }) ?? []
-    );
-  }, [msg.steps]);
-
   const approvalNode = React.useMemo(() => {
     return msg.steps?.find((s) => s.name === "approvalNode") ?? null;
   }, [msg.steps]);
@@ -61,23 +40,30 @@ const Bubble = ({
   }, [msg.steps]);
 
   const normalSteps = React.useMemo(() => {
-    return (
+    const steps =
       msg.steps?.filter(
         (step) =>
-          !toolSteps.includes(step) &&
           !step.name.startsWith("Worker:") &&
           // 确保不显示 classifierNode
           step.name !== "classifierNode" &&
           [
+            "AI",
             "supervisorNode",
             "synthesizerNode",
             "textNode",
             "imageNode",
             "fileNode",
           ].includes(step.name),
-      ) ?? []
-    );
-  }, [msg.steps, toolSteps]);
+      ) ?? [];
+
+    // 如果已经有了具体的功能节点（如 textNode, supervisorNode 等），
+    // 我们可以过滤掉初始的 "AI" 占位节点，保持时间轴整洁
+    if (steps.some((s) => s.name !== "AI")) {
+      return steps.filter((s) => s.name !== "AI");
+    }
+
+    return steps;
+  }, [msg.steps]);
 
   return (
     <div
@@ -169,6 +155,9 @@ const Bubble = ({
                     return [
                       timelineItem,
                       {
+                        loading: workerSteps.every(
+                          (s) => s.status === "running",
+                        ),
                         color: workerSteps.every(
                           (s) => s.status === "completed",
                         )

@@ -58,6 +58,7 @@ export const InputState = z.object({
 const builder = new StateGraph(State)
   .addNode("classifierNode", classifierNode)
   .addNode("supervisorNode", supervisorNode)
+  .addNode("distributeTasksNode", (state) => state) // 作为一个中转/分发节点
   .addNode("workerNode", workerNode)
   .addNode("synthesizerNode", synthesizerNode)
   .addNode("textNode", textNode)
@@ -69,7 +70,7 @@ const builder = new StateGraph(State)
       case "text":
         return "textNode";
       case "image_simple":
-        return "textNode"; // 先去 textNode 优化提示词
+        return "textNode";
       case "decompose":
       case "image_complex":
         return "supervisorNode";
@@ -77,11 +78,15 @@ const builder = new StateGraph(State)
         return "textNode";
     }
   })
-  .addConditionalEdges("supervisorNode", distributeTasksNode)
-  .addEdge("workerNode", "synthesizerNode")
+  // Supervisor 完成任务拆解后，进入分发器
+  .addEdge("supervisorNode", "distributeTasksNode")
+  // 分发器根据依赖关系判断下一步：并行执行 Worker 或 进入汇总
+  .addConditionalEdges("distributeTasksNode", distributeTasksNode)
+  // 每个 Worker 执行完后，重新回到分发器，检查是否有新的依赖项已满足
+  .addEdge("workerNode", "distributeTasksNode")
   .addConditionalEdges("synthesizerNode", (state) => {
     if (state.shouldGenerate === "image_complex") {
-      return "textNode"; // 复杂生图：拆分执行汇总后，去 textNode 优化提示词
+      return "textNode";
     }
     return END;
   })
@@ -90,7 +95,7 @@ const builder = new StateGraph(State)
       state.shouldGenerate === "image_simple" ||
       state.shouldGenerate === "image_complex"
     ) {
-      return "imageNode"; // 提示词优化完成后，去生图
+      return "imageNode";
     }
     return END;
   })
