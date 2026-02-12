@@ -16,6 +16,7 @@ import { toolNode } from "./node/toolsNode";
 import { distributeTasksNode } from "./node/distributeTasksNode";
 import { classifierNode } from "./node/classifierNode";
 import { imageNode } from "./node/imageNode";
+import { smartHomeNode } from "./node/smartHomeNode";
 
 export const State = Annotation.Root({
   message: Annotation<z.infer<typeof MessageSchema>>({
@@ -64,6 +65,7 @@ const builder = new StateGraph(State)
   .addNode("textNode", textNode)
   .addNode("imageNode", imageNode)
   .addNode("toolNode", toolNode)
+  .addNode("smartHomeNode", smartHomeNode)
   .addEdge(START, "classifierNode")
   .addConditionalEdges("classifierNode", (state) => {
     switch (state.shouldGenerate) {
@@ -74,6 +76,8 @@ const builder = new StateGraph(State)
       case "decompose":
       case "image_complex":
         return "supervisorNode";
+      case "smart_home":
+        return "smartHomeNode";
       default:
         return "textNode";
     }
@@ -99,7 +103,8 @@ const builder = new StateGraph(State)
     }
     return END;
   })
-  .addEdge("imageNode", END);
+  .addEdge("imageNode", END)
+  .addEdge("smartHomeNode", END);
 
 const checkpointer = new MemorySaver();
 

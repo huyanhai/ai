@@ -5,10 +5,18 @@ export const ConfigScheme = z.object({
 });
 
 export const TypeScheme = z
-  .enum(["text", "image", "file", "decompose", "image_simple", "image_complex"])
+  .enum([
+    "text",
+    "image",
+    "file",
+    "decompose",
+    "image_simple",
+    "image_complex",
+    "smart_home",
+  ])
   .default("text")
   .describe(
-    "对话意图分类或消息类型：text (纯对话/文本)、image (图片附件)、file (文件附件)、decompose (复杂任务拆分)、image_simple (简单逻辑生图)、image_complex (复杂逻辑拆分生图)",
+    "对话意图分类或消息类型：text (纯对话/文本)、image (图片附件)、file (文件附件)、decompose (复杂任务拆分)、image_simple (简单逻辑生图)、image_complex (复杂逻辑拆分生图)、smart_home (3D智能家居控制)",
   );
 
 export const MessageSchema = z.array(

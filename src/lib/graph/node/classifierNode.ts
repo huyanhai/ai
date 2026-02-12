@@ -12,6 +12,7 @@ const typeMap: Record<TTypeScheme, string> = {
   decompose: "[任务拆分]",
   image_simple: "[简单生图]",
   image_complex: "[复杂生图]",
+  smart_home: "[智能家居控制]",
 };
 
 /**
@@ -57,7 +58,12 @@ export const classifierNode = async (state: TState) => {
 - **判定标准**：需要基于特定事实、参考资料或多维度调研后再进行图片创作。
 - **示例**：“根据我刚才上传的方案书，设计一张对应的宣传海报”、“对比分析这两家公司，然后画一张未来趋势图”。
 
+### 5. smart_home (3D 智能家居控制)
+- **判定标准**：用户想要控制 3D 场景中的设备（灯光、门、温度等）。
+- **示例**：“把灯调成红色”、“开门”、“设置温度为 25 度”。
+
 ## 判定优先级
+- 涉及控制 3D 场景、灯火、家电、门窗等，归类为 smart_home。
 - 涉及绘图意愿，优先归类为 image_simple 或 image_complex。
 - 若逻辑复杂、涉及多步分析或文件理解，归类为 decompose。
 - 其余所有交互归类为 text。`),

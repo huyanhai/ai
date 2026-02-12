@@ -8,6 +8,7 @@ import { getFileExtension } from "@/utils/file";
 import { MessageCirclePlus } from "lucide-react";
 import { Tooltip } from "antd";
 import { ImageExts } from "@/constants/file";
+import { useSmartHomeStore } from "@/store/smart-home";
 
 function generateThreadId() {
   return Math.random().toString(36).substring(7);
@@ -96,6 +97,14 @@ const AiChat = () => {
                       typeof result === "string"
                         ? result
                         : JSON.stringify(output);
+
+                    // 如果是智能家居节点，更新 3D 场景状态
+                    if (event.name === "smartHomeNode") {
+                      const actions = (output as any)?.smart_home_actions;
+                      if (actions) {
+                        useSmartHomeStore.getState().updateStates(actions);
+                      }
+                    }
                   } else if (typeof output === "string") {
                     updatedStep.content = output;
                   }
